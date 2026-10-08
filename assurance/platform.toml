@@ -382,8 +382,8 @@ covers = ["unsafe:firmware/src/main.rs#block:heap-init-core-ptr-addr_of_mut-heap
 [[assumption]]
 id = "PLAT-UNSAFE-004"
 class = "build-configuration"
-statement = "Each of the eight build-selected GPIOs handed to `AnyPin::steal` has exactly one owner at runtime: no two of them name the same pad, none of them is a pad another driver claims, and the LED data pin a host can re-aim cannot be pointed at any of them."
-discharge = "The compile-time asserts in firmware/build.rs and the boot-time filter in firmware/src/main.rs, read TOGETHER with the presence button's own steal in firmware/src/presence.rs and against the five board files under firmware/boards. The asserts reject a build that collides LED_POWER_PIN, USR_LED_PIN, WAKE_PIN or the four panel control lines with each other, with the LED data pin, or with the hard-wired SPI1 and I2C1 lines; the filter drops a host-written data pin naming one of them back to the build default. What is owed is the PAIRWISE table: that the assert set covers every pair of the eight rather than the pairs somebody thought of. One uncovered pair refutes it."
+statement = "Each of the eleven build-selected GPIOs handed to `AnyPin::steal` has exactly one owner at runtime: no two of them name the same pad, none of them is a pad another driver claims, and the LED data pin a host can re-aim cannot be pointed at any of them."
+discharge = "The compile-time asserts in firmware/build.rs and the boot-time filter in firmware/src/main.rs, read TOGETHER with the presence button's own steal in firmware/src/presence.rs and against the five board files under firmware/boards. The asserts reject a build that collides LED_POWER_PIN, USR_LED_PIN, WAKE_PIN or the four panel control lines with each other, with the LED data pin, or with the hard-wired SPI1 and I2C1 lines, and reject the three `rgb_gpio` R/G/B pins repeating each other or naming any of the other eight on every LED build; the filter drops a host-written data pin naming one of them back to the build default. What is owed is the PAIRWISE table: that the assert set covers every pair of the eleven rather than the pairs somebody thought of. One uncovered pair refutes it."
 discharge_owner = "contributor"
 status = "pending"
 failure_direction = "memory-safety and availability: two owners driving one pad is aliased ownership of a peripheral, and the loser is a button, an LED rail or a panel control line"
@@ -392,6 +392,9 @@ covers = [
   "unsafe:firmware/src/presence.rs#block:anypin-steal-pin",
   "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_usr_led_pin",
   "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_led_power_pin",
+  "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_led_red_pin",
+  "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_led_green_pin",
+  "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_led_blue_pin",
   "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_wake_pin",
   "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_display_cs",
   "unsafe:firmware/src/main.rs#block:embassy_rp-gpio-anypin-steal-build_display_dc",

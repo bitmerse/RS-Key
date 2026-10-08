@@ -106,7 +106,7 @@ pub const DEFAULT_EFFECT: [u8; N_STATUS] = [
     EFFECT_SPARKLE, // BOOT
 ];
 /// Default colour per status (indexed by the `STATUS_*` constants).
-pub const DEFAULT_COLOR: [u8; N_STATUS] = [COLOR_GREEN, COLOR_GREEN, COLOR_YELLOW, COLOR_RED];
+pub const DEFAULT_COLOR: [u8; N_STATUS] = [COLOR_RED, COLOR_RED, COLOR_GREEN, COLOR_RED];
 /// Default speed per status (all use the effect's built-in default).
 pub const DEFAULT_SPEED: [u8; N_STATUS] = [SPEED_DEFAULT; N_STATUS];
 /// Default channel max (a gentle 16/255).
@@ -165,10 +165,24 @@ pub struct StatusCfg {
 
 /// The whole `EF_LED_CONF` block as a plain struct: a global `steady` flag plus
 /// one [`StatusCfg`] per device status.
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct LedConfig {
     pub steady: bool,
     pub status: [StatusCfg; N_STATUS],
+}
+
+impl Default for LedConfig {
+    fn default() -> Self {
+        Self {
+            steady: true,
+            status: [
+                default_status(STATUS_IDLE),
+                default_status(STATUS_PROCESSING),
+                default_status(STATUS_TOUCH),
+                default_status(STATUS_BOOT),
+            ],
+        }
+    }
 }
 
 impl LedConfig {

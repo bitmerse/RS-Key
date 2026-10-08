@@ -10,7 +10,7 @@ read-modify-write of ONLY the fields you pass, so anything set elsewhere
 (PicoForge, another flag) is preserved.
 
   --led-pin       the WS2812/gpio data GPIO (overrides the firmware build LED_PIN)
-  --led-driver    the backend: gpio / pimoroni / ws2812 (overrides build LED_KIND)
+  --led-driver    the backend: gpio / pimoroni / ws2812 / rgb_gpio (overrides build LED_KIND)
   --led-order     the WS2812 wire byte order: rgb / grb (overrides build LED_ORDER)
   --manufacturer  the USB iManufacturer string (overrides the build/VID default)
   --product       the USB iProduct string (overrides the build/VID default)
@@ -60,7 +60,7 @@ USB_STR_MAX = 30
 YK_TOKEN_SUFFIX_LEN = len(" OTP+FIDO+CCID")
 
 # Driver numbering follows PicoForge's LedDriverType.
-DRIVERS = {"gpio": 1, "pimoroni": 2, "ws2812": 3}
+DRIVERS = {"gpio": 1, "pimoroni": 2, "ws2812": 3, "rgb_gpio": 4}
 DRIVER_NAMES = {v: k for k, v in DRIVERS.items()}
 ORDERS = {"rgb": 0, "grb": 1}
 ORDER_NAMES = {v: k for k, v in ORDERS.items()}
@@ -81,7 +81,7 @@ def register(sub):
     p.add_argument(
         "--led-driver",
         choices=sorted(DRIVERS),
-        help="LED backend: gpio (on/off), pimoroni (3-pin PWM RGB), ws2812 (addressable)",
+        help="LED backend: gpio (on/off), pimoroni (3-pin PWM RGB), ws2812 (addressable), rgb_gpio (3-pin discrete RGB)",
     )
     p.add_argument(
         "--led-order",

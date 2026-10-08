@@ -427,9 +427,19 @@ fn main() {
     let led_kind = resolve_led_kind();
     println!("cargo:rustc-cfg=led_kind=\"{led_kind}\"");
     println!(
-        "cargo:rustc-check-cfg=cfg(led_kind, values(\"ws2812\", \"gpio\", \"pimoroni\", \"none\"))"
+        "cargo:rustc-check-cfg=cfg(led_kind, values(\"ws2812\", \"gpio\", \"pimoroni\", \"rgb_gpio\", \"none\"))"
     );
     println!("cargo:rerun-if-env-changed=LED_KIND");
+
+    let red_pin = resolve_led_pin_channel("LED_RED_PIN", 29);
+    let green_pin = resolve_led_pin_channel("LED_GREEN_PIN", 28);
+    let blue_pin = resolve_led_pin_channel("LED_BLUE_PIN", 27);
+    println!("cargo:rustc-env=PK_LED_RED_PIN={red_pin}");
+    println!("cargo:rustc-env=PK_LED_GREEN_PIN={green_pin}");
+    println!("cargo:rustc-env=PK_LED_BLUE_PIN={blue_pin}");
+    println!("cargo:rerun-if-env-changed=LED_RED_PIN");
+    println!("cargo:rerun-if-env-changed=LED_GREEN_PIN");
+    println!("cargo:rerun-if-env-changed=LED_BLUE_PIN");
 
     // WS2812 wire byte order (the `ws2812` backend only): `rgb` (default — the
     // Waveshare RP2350-One is unusually RGB) or `grb` (the WS2812B standard, e.g.
@@ -833,9 +843,22 @@ fn resolve_led_kind() -> String {
     let v = raw.trim().to_ascii_lowercase();
     match v.as_str() {
         "" | "ws2812" => "ws2812".into(), // unset / empty → the default backend
-        "gpio" | "pimoroni" | "none" => v,
-        _ => panic!("LED_KIND={raw:?} must be one of: ws2812, gpio, pimoroni, none"),
+        "gpio" | "pimoroni" | "rgb_gpio" | "none" => v,
+        _ => panic!("LED_KIND={raw:?} must be one of: ws2812, gpio, pimoroni, rgb_gpio, none"),
     }
+}
+
+fn resolve_led_pin_channel(env_var: &str, default_pin: u8) -> u8 {
+    let raw = env::var(env_var).unwrap_or_default();
+    if raw.trim().is_empty() {
+        return default_pin;
+    }
+    let p = raw
+        .trim()
+        .parse::<u8>()
+        .unwrap_or_else(|_| panic!("{env_var}={raw:?} must be a valid GPIO pin (0..=29)"));
+    assert!(p <= 29, "{env_var}={p} must be in 0..=29");
+    p
 }
 
 /// Resolve `MAX_LEDS` (the PIO/array ceiling for addressable LEDs) to a

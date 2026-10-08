@@ -12,8 +12,9 @@ number of connected LEDs is configured at **runtime** via `rsk hw --led-num` (or
 
 | Knob | Default | When to change it |
 |---|---|---|
-| `LED_KIND` | `ws2812` | `ws2812` (addressable RGB, default), `gpio` (plain on/off), `pimoroni` (3-pin PWM RGB), or `none` (no indicator). See [build.md](../build.md). |
+| `LED_KIND` | `ws2812` | `ws2812` (addressable RGB, default), `gpio` (plain on/off), `pimoroni` (3-pin PWM RGB), `rgb_gpio` (3-pin common-anode RGB on any three GPIOs), or `none` (no indicator). See [build.md](../build.md). |
 | `LED_PIN` | `16` | A board whose addressable LED is on a different GPIO (`0..=29`). |
+| `LED_RED_PIN` / `LED_GREEN_PIN` / `LED_BLUE_PIN` | `29` / `28` / `27` | The cathode GPIOs of a `rgb_gpio` LED. Must be three different pins, and none may be the presence, LED-power or USR-LED pin (rejected at compile time). |
 | `LED_ORDER` | `rgb` | A WS2812 board with swapped red/green: set `grb` (the WS2812B standard). The Waveshare RP2350-One is `rgb`; most other parts are `grb`. |
 | `MAX_LEDS` | `1` | A board with **multiple** daisy-chained addressable LEDs: set it to the chain length (max `64`). Default `1` is a single onboard LED. The actual connected count is set at runtime with `rsk hw --led-num`. |
 
@@ -39,9 +40,11 @@ effects work with any number of LEDs. `vapor` and `sparkle` shine on a single
 LED too. `bounce` and `flow` naturally reduce to a static colour or a single
 pixel when there is only one LED.
 
-Effects only render on the **`ws2812`** backend (addressable RGB). The `gpio` and
-`pimoroni` backends always use the classic on/off blink, regardless of the
-effect setting. They lack per-LED control and pixel-level colour.
+Effects only render on the **`ws2812`** backend (addressable RGB). The `gpio`,
+`pimoroni` and `rgb_gpio` backends always use the classic on/off blink, regardless
+of the effect setting. They lack per-LED control and pixel-level colour.
+`rgb_gpio` switches each channel fully on or off, so brightness only decides
+whether a channel is lit: the eight palette colours still come out distinct.
 
 | Effect | ID | What you see | Suits |
 |---|---|---|---|
@@ -55,12 +58,17 @@ effect setting. They lack per-LED control and pixel-level colour.
 
 | State | Default effect | Default colour | Means |
 |---|---|---|---|
-| idle | `vapor`: gentle breathing | green | ready, nothing in flight |
-| processing | `flow`: warm-colour flow | yellow→red gradient | handling an APDU / crypto op |
-| **waiting for touch** | `bounce`: smooth bounce | yellow | press the button to confirm |
+| idle | `vapor`: gentle breathing | red | ready, nothing in flight |
+| processing | `flow`: colour flow | red | handling an APDU / crypto op |
+| **waiting for touch** | `bounce`: smooth bounce | green | press the button to confirm |
 | boot | `sparkle`: random sparkle | red | the brief power-up state |
 
-![Status-LED cheat sheet — idle breathes green (vapor), processing flows a yellow-to-red gradient (flow), waiting-for-touch bounces yellow (bounce), and boot sparkles red (sparkle); the swatches and animations show each state's default colour and effect](../images/led-status.svg)
+The indicator starts in **steady** mode, which shows each state's colour solid
+and skips the effects; `rsk led --blink` turns the effects and blink patterns on.
+On a button build the LED also shows the touch colour for as long as the presence
+button is held, as press feedback.
+
+![Status-LED cheat sheet — idle breathes red (vapor), processing flows red (flow), waiting-for-touch bounces green (bounce), and boot sparkles red (sparkle); the swatches and animations show each state's default colour and its effect once `--blink` is on](../images/led-status.svg)
 
 A few honest details:
 
@@ -103,7 +111,7 @@ rsk led --status idle --color blue --brightness 64
 > in on (`rsk led`, `rsk led --transport fido`, or a boot reload of the stored
 > record):
 >
-> - `--color off` on `--status touch` becomes the default yellow.
+> - `--color off` on `--status touch` becomes the default green.
 > - `--brightness 0` on `--status touch` is raised to `8`.
 > - `--speed 1` is raised to `2`. At `1` the breathing effect renders an all-black
 >   frame every tick while the brightness byte still reads fine.
@@ -118,13 +126,14 @@ rsk led --status idle --color blue --brightness 64
 
 There is one case where `touch` gives way instead. If the state wearing the touch
 colour has that colour as its *own* factory colour, resetting it would not resolve
-the clash, so `touch` reverts to its factory look (yellow, bounce). Only `boot`
-(red) and `idle`/`processing` (green) can trigger that:
+the clash, so `touch` reverts to its factory look (green, bounce). Only red can
+trigger that, as the factory colour of `idle`, `processing` and `boot`:
 
 ```sh
-rsk led --status touch --color red      # sticks — unless boot is red
-rsk led --status touch --color green    # sticks — unless idle or processing is green
-rsk led --status boot  --color blue     # …then a red touch is legitimate and kept
+rsk led --status touch --color blue     # sticks — blue is nobody's factory colour
+rsk led --status touch --color red      # reverts to green while any of idle/processing/boot is red
+rsk led --status idle --color cyan      # …recolour all three away from red,
+                                        #    and then a red touch is kept
 ```
 
 **What this does not promise.** Two states in *different* colours can still be
@@ -133,8 +142,8 @@ unlit; red, green and yellow are mutually confusable under red-green colour
 blindness; and on a one-LED board `bounce`, `flow` and steady mode all render the
 same solid frame. What separates the states there is the per-state blink timing
 (touch 1000/100 ms vs idle 500/500 ms), which no host write can change — but
-`--steady` suppresses blinking altogether, so on a single-colour build it leaves
-nothing to distinguish them. If the consent signal has to be unambiguous, use a
+`--steady`, the default, suppresses blinking altogether, so on a single-colour
+build it leaves nothing to distinguish them; run `rsk led --blink` there. If the consent signal has to be unambiguous, use a
 [trusted-display](display.md) build, which names the operation on screen.
 
 ### Effect & speed
@@ -243,11 +252,11 @@ panel.)
 ### Reset to defaults
 
 ```sh
-rsk led --status idle       --color green  --brightness 16 --effect vapor
-rsk led --status processing --color green  --brightness 16 --effect flow
-rsk led --status touch      --color yellow --brightness 16 --effect bounce
+rsk led --status idle       --color red    --brightness 16 --effect vapor
+rsk led --status processing --color red    --brightness 16 --effect flow
+rsk led --status touch      --color green  --brightness 16 --effect bounce
 rsk led --status boot       --color red    --brightness 16 --effect sparkle
-rsk led --blink
+rsk led --steady
 ```
 
 ## Under the hood
@@ -296,6 +305,6 @@ writes to `EF_PHY` via the rescue applet and applies at next boot.
 - **`rsk led` can't reach the device.** It needs the CCID interface up
   (`pcscd` on Linux). If `gpg --card-status` / `rsk status` also fail, fix that
   first ([linux.md](../linux.md)).
-- **An app looks frozen.** Check for the long-on yellow touch state and tap the
-  button. If the LED is idle-green and the app is still stuck, it isn't waiting
+- **An app looks frozen.** Check for the green touch state and tap the
+  button. If the LED is idle-red and the app is still stuck, it isn't waiting
   on the device.

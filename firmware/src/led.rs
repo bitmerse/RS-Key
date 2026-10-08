@@ -102,8 +102,8 @@ static LED_STATUS: AtomicU8 = AtomicU8::new(STATUS_BOOT);
 static WINK_END_MS: AtomicU32 = AtomicU32::new(0);
 /// When set, the blink task ignores the on/off phases and shows the current
 /// status color solidly — the status still recolors the LED, it just stops
-/// blinking. Off by default.
-static LED_STEADY: AtomicBool = AtomicBool::new(false);
+/// blinking. On by default.
+static LED_STEADY: AtomicBool = AtomicBool::new(true);
 static STATUS_COLOR: [AtomicU8; N_STATUS] = [
     AtomicU8::new(DEFAULT_COLOR[STATUS_IDLE as usize]),
     AtomicU8::new(DEFAULT_COLOR[STATUS_PROCESSING as usize]),
@@ -356,7 +356,11 @@ impl Blinker {
         if let Some(c) = wink_colour() {
             return c;
         }
-        let s = (LED_STATUS.load(Ordering::Relaxed) as usize).min(N_STATUS - 1);
+        let mut s = (LED_STATUS.load(Ordering::Relaxed) as usize).min(N_STATUS - 1);
+        #[cfg(not(feature = "display"))]
+        if crate::presence::is_button_pressed() {
+            s = STATUS_TOUCH as usize;
+        }
         let (on_ms, off_ms) = TIMING[s];
         let now = Instant::now();
         if now >= self.phase_end {
@@ -622,7 +626,11 @@ pub async fn ws2812_task(mut ws2812: PioWs2812<'static, PIO0, 0, MAX_LEDS, Ws281
 /// Solid frame for steady mode: the status colour lit across the runtime LEDs,
 /// no animation. Every effect defers to this when `LED_STEADY` is set.
 #[cfg(not(led_kind = "none"))]
-fn steady_frame(s: usize) -> [RGB8; MAX_LEDS] {
+fn steady_frame(mut s: usize) -> [RGB8; MAX_LEDS] {
+    #[cfg(not(feature = "display"))]
+    if crate::presence::is_button_pressed() {
+        s = STATUS_TOUCH as usize;
+    }
     broadcast_frame(color_rgb(
         STATUS_COLOR[s].load(Ordering::Relaxed),
         STATUS_BRIGHTNESS[s].load(Ordering::Relaxed),
@@ -643,7 +651,16 @@ fn broadcast_frame(c: RGB8) -> [RGB8; MAX_LEDS] {
 /// Choose and run the effect for status `s`. Exposed as a separate function
 /// (rather than inlined into the task) so it can be unit-tested.
 #[cfg(not(led_kind = "none"))]
-fn dispatch(s: usize, tick: u32, on_phase: &mut bool, phase_end: &mut Instant) -> [RGB8; MAX_LEDS] {
+fn dispatch(
+    mut s: usize,
+    tick: u32,
+    on_phase: &mut bool,
+    phase_end: &mut Instant,
+) -> [RGB8; MAX_LEDS] {
+    #[cfg(not(feature = "display"))]
+    if crate::presence::is_button_pressed() {
+        s = STATUS_TOUCH as usize;
+    }
     let effect_id = STATUS_EFFECT[s].load(Ordering::Relaxed);
     match effect_id {
         EFFECT_VAPOR => effect_vapor(s, tick),
@@ -724,6 +741,37 @@ pub async fn pimoroni_task(mut rg: Pwm<'static>, mut b: Pwm<'static>) {
         let mut cfg_b = pimoroni_cfg();
         cfg_b.compare_a = u16::from(c.b);
         b.set_config(&cfg_b);
+        Timer::after_millis(5).await;
+    }
+}
+
+/// `rgb_gpio` backend: a 3-pin Common Anode RGB LED driven by three discrete GPIOs
+/// (active-low cathodes: `set_low()` turns channel ON, `set_high()` turns OFF).
+#[cfg(not(led_kind = "none"))]
+#[embassy_executor::task]
+pub async fn rgb_gpio_task(
+    mut red: Output<'static>,
+    mut green: Output<'static>,
+    mut blue: Output<'static>,
+) {
+    let mut blinker = Blinker::new();
+    loop {
+        let c = blinker.tick();
+        if c.r > 0 {
+            red.set_low();
+        } else {
+            red.set_high();
+        }
+        if c.g > 0 {
+            green.set_low();
+        } else {
+            green.set_high();
+        }
+        if c.b > 0 {
+            blue.set_low();
+        } else {
+            blue.set_high();
+        }
         Timer::after_millis(5).await;
     }
 }

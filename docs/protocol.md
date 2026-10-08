@@ -825,7 +825,7 @@ zero/empty TLV. (A host may still do a full read-modify-write for clarity.)
 | `09` | USB_PRODUCT | 1..33 | product string + trailing `NUL` (length **includes** the NUL). A 33-byte value with no terminating NUL is malformed and leaves the stored string **unchanged**; an empty value is the explicit clear |
 | `0A` | ENABLED_CURVES | 4 | FIDO curve bitmask (BE32) |
 | `0B` | ENABLED_USB_ITF | 1 | interface mask: `CCID 0x1`, `WCID 0x2`, `HID 0x4`, `KB 0x8`, `LWIP 0x10` |
-| `0C` | LED_DRIVER | 1 | `1` = gpio, `2` = pimoroni, `3` = ws2812 (follows PicoForge `LedDriverType`) |
+| `0C` | LED_DRIVER | 1 | `1` = gpio, `2` = pimoroni, `3` = ws2812 (follows PicoForge `LedDriverType`); `4` = rgb_gpio, an **RS-Key extension** (3-pin common-anode RGB on the build's `LED_RED_PIN`/`LED_GREEN_PIN`/`LED_BLUE_PIN`). An `LED_KIND=rgb_gpio` build renders on driver 4 whatever this byte says |
 | `0D` | LED_ORDER | 1 | **RS-Key extension** — WS2812 wire order: `0` = rgb, `1` = grb |
 | `0E` | LED_NUM | 1 | **RS-Key extension** — addressable LEDs actually connected (`1..=255`; `0`/absent = the build's `MAX_LEDS`). Firmware saturates a value above its compiled `MAX_LEDS` ceiling. |
 | `0F` | USB_MANUFACTURER | 1..33 | **RS-Key extension** — iManufacturer string + trailing `NUL` (length **includes** the NUL). Absent ⇒ the VID-derived default, then the build const. |
@@ -911,7 +911,7 @@ one command handler — normalizes it on **every** decode: the vendor `SET LED`,
 FIDO `CONFIG_WRITE` LED target (§9), and the boot reload of the stored record
 alike. Four rules, in that order:
 
-- `color 0` (off) on the touch status becomes the default touch colour (yellow).
+- `color 0` (off) on the touch status becomes the default touch colour (green).
 - its `brightness` is raised to `8`.
 - a non-zero `speed` is raised to `2` (`speed 1` makes the breathing effect render
   an all-black frame every tick while the brightness byte still reads compliant).
@@ -925,11 +925,10 @@ alike. Four rules, in that order:
 
 **The give-way case.** If the status wearing the touch colour has that colour as
 its *factory* colour, resetting it would not resolve the clash, so the **touch**
-status reverts to its factory look (bounce / yellow) instead. Only `boot` (red) and
-`idle`/`processing` (green) can trigger this. A red touch status therefore sticks
-only while `boot` is not red, and a green one only while neither `idle` nor
-`processing` is green. Yellow is nobody else's factory colour, which is what makes
-the fallback converge: enforcing twice is enforcing once.
+status reverts to its factory look (bounce / green) instead. Only red can trigger
+this — the factory colour of `idle`, `processing` and `boot` — so a red touch status
+sticks only while none of those three is red. Green is nobody else's factory
+colour, which is what makes the fallback converge: enforcing twice is enforcing once.
 
 **What this does not guarantee.** Two statuses in *different* colours can still be
 hard to tell apart. The `gpio` backend has no hue at all — the indicator is lit or

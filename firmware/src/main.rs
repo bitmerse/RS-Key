@@ -160,9 +160,15 @@ const XOSC_DELAY_MULT: u32 = env_u32(env!("PK_XOSC_DELAY_MULT"));
 // flags say. Only a non-`none` build renders an LED, so these exist only there.
 // The wire-order default lives in `led` (the `LED_RG_SWAP` atomic seeds from the
 // `led_order` cfg). `BUILD_DRIVER` maps the build LED_KIND onto the phy driver
-// numbering (1=gpio, 2=pimoroni, 3=ws2812).
+// numbering (1=gpio, 2=pimoroni, 3=ws2812, 4=rgb_gpio).
 #[cfg(not(led_kind = "none"))]
 const BUILD_LED_PIN: u8 = env_u16(env!("PK_LED_PIN")) as u8;
+#[cfg(not(led_kind = "none"))]
+const BUILD_LED_RED_PIN: u8 = env_u16(env!("PK_LED_RED_PIN")) as u8;
+#[cfg(not(led_kind = "none"))]
+const BUILD_LED_GREEN_PIN: u8 = env_u16(env!("PK_LED_GREEN_PIN")) as u8;
+#[cfg(not(led_kind = "none"))]
+const BUILD_LED_BLUE_PIN: u8 = env_u16(env!("PK_LED_BLUE_PIN")) as u8;
 // Optional LED power-enable pin: a GPIO driven high at boot to power a gated LED
 // rail (the Seeed XIAO RP2350's WS2812 sits behind GP23). Off unless `LED_POWER_PIN`
 // is set; the LED block claims and holds it. Only a rendered LED needs a rail.
@@ -382,12 +388,53 @@ const _: () = assert!(
     "USR_LED_PIN is not supported on a display build (the panel replaces the onboard LED)"
 );
 
+// The `rgb_gpio` backend steals these three pads whenever the phy record selects
+// driver 4, which every LED build accepts — so they may collide with no other
+// stolen pad on any LED build, not only an `LED_KIND=rgb_gpio` one.
+#[cfg(not(led_kind = "none"))]
+const fn is_rgb_pin(g: u8) -> bool {
+    g == BUILD_LED_RED_PIN || g == BUILD_LED_GREEN_PIN || g == BUILD_LED_BLUE_PIN
+}
+#[cfg(not(led_kind = "none"))]
+const _: () = assert!(
+    BUILD_LED_RED_PIN != BUILD_LED_GREEN_PIN
+        && BUILD_LED_GREEN_PIN != BUILD_LED_BLUE_PIN
+        && BUILD_LED_RED_PIN != BUILD_LED_BLUE_PIN,
+    "LED_RED_PIN, LED_GREEN_PIN and LED_BLUE_PIN must be three different GPIOs"
+);
+#[cfg(not(led_kind = "none"))]
+const _: () = assert!(
+    !(BUILD_LED_POWER_ENABLED && is_rgb_pin(BUILD_LED_POWER_PIN)),
+    "LED_POWER_PIN must not equal LED_RED_PIN, LED_GREEN_PIN or LED_BLUE_PIN"
+);
+#[cfg(not(led_kind = "none"))]
+const _: () = assert!(
+    !(BUILD_USR_LED_ENABLED && is_rgb_pin(BUILD_USR_LED_PIN)),
+    "USR_LED_PIN must not equal LED_RED_PIN, LED_GREEN_PIN or LED_BLUE_PIN"
+);
+#[cfg(all(not(feature = "display"), not(led_kind = "none")))]
+const _: () = assert!(
+    !(BUILD_PRESENCE_IS_GPIO && is_rgb_pin(BUILD_PRESENCE_PIN)),
+    "a GPIO PRESENCE_PIN must not equal LED_RED_PIN, LED_GREEN_PIN or LED_BLUE_PIN"
+);
+#[cfg(all(feature = "display", not(led_kind = "none")))]
+const _: () = assert!(
+    !(BUILD_WAKE_ENABLED && is_rgb_pin(BUILD_WAKE_PIN))
+        && !is_rgb_pin(BUILD_DISPLAY_CS)
+        && !is_rgb_pin(BUILD_DISPLAY_DC)
+        && !is_rgb_pin(BUILD_DISPLAY_RST)
+        && !is_rgb_pin(BUILD_DISPLAY_TP_RST),
+    "LED_RED_PIN, LED_GREEN_PIN and LED_BLUE_PIN must not equal WAKE_PIN or a panel control GPIO"
+);
+
 #[cfg(led_kind = "ws2812")]
 const BUILD_DRIVER: u8 = 3;
 #[cfg(led_kind = "gpio")]
 const BUILD_DRIVER: u8 = 1;
 #[cfg(led_kind = "pimoroni")]
 const BUILD_DRIVER: u8 = 2;
+#[cfg(led_kind = "rgb_gpio")]
+const BUILD_DRIVER: u8 = 4;
 
 type Drv = UsbDriver<'static, USB>;
 
@@ -714,7 +761,7 @@ async fn main(spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
     // bcdDevice build counter; also surfaced on the trusted-display Firmware screen.
-    let device_release: u16 = 0x09DA;
+    let device_release: u16 = 0x09DB;
     config.device_release = device_release;
 
     let mut builder = Builder::new(
@@ -896,10 +943,17 @@ async fn main(spawner: Spawner) {
             .filter(|&g| !(BUILD_LED_POWER_ENABLED && g == BUILD_LED_POWER_PIN))
             .filter(|&g| !(BUILD_USR_LED_ENABLED && g == BUILD_USR_LED_PIN))
             .unwrap_or(BUILD_LED_PIN);
-        // PHY led_driver (1=gpio, 2=pimoroni, 3=ws2812) overrides the build kind;
+        // PHY led_driver (1=gpio, 2=pimoroni, 3=ws2812, 4=rgb_gpio) overrides the build kind;
         // anything else (unset, or the N/A esp32 value) keeps the build default.
+        // If compiled with `rgb_gpio` (BUILD_DRIVER=4), prioritize it over legacy stored drivers (1 or 3).
         let led_driver = match phy.as_ref().and_then(|p| p.led_driver) {
-            Some(d @ 1..=3) => d,
+            Some(d @ 1..=4) => {
+                if BUILD_DRIVER == 4 && d != 4 {
+                    BUILD_DRIVER
+                } else {
+                    d
+                }
+            }
             _ => BUILD_DRIVER,
         };
         // Publish the boot-resolved phy values so CONFIG_READ can show the host
@@ -966,6 +1020,24 @@ async fn main(spawner: Spawner) {
                 let rg = Pwm::new_output_ab(p.PWM_SLICE1, p.PIN_18, p.PIN_19, led::pimoroni_cfg());
                 let b = Pwm::new_output_a(p.PWM_SLICE2, p.PIN_20, led::pimoroni_cfg());
                 hp.spawn(led::pimoroni_task(rg, b).unwrap());
+            }
+            4 => {
+                // `rgb_gpio`: 3-pin Common Anode RGB LED on discrete GPIOs.
+                // Safety: the const asserts above prove the three pads collide with no
+                // other stolen pad, and the backend arms are mutually exclusive.
+                let red = Output::new(
+                    unsafe { embassy_rp::gpio::AnyPin::steal(BUILD_LED_RED_PIN) },
+                    Level::High,
+                );
+                let green = Output::new(
+                    unsafe { embassy_rp::gpio::AnyPin::steal(BUILD_LED_GREEN_PIN) },
+                    Level::High,
+                );
+                let blue = Output::new(
+                    unsafe { embassy_rp::gpio::AnyPin::steal(BUILD_LED_BLUE_PIN) },
+                    Level::High,
+                );
+                hp.spawn(led::rgb_gpio_task(red, green, blue).unwrap());
             }
             _ => {
                 // `ws2812` (driver 3, and the safe fallback): the single addressable

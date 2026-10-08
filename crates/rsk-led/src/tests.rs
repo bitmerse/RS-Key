@@ -64,9 +64,9 @@ fn encode_layout_is_steady_then_quads() {
 fn color_is_masked_to_low_three_bits() {
     let mut cfg = LedConfig::default();
     let mut b = [0u8; CONF_LEN];
-    b[2] = 0xFA; // idle color slot; 0xFA & 0x7 == 2
+    b[2] = 0xFB; // idle color slot; 0xFB & 0x7 == 3 (COLOR_BLUE)
     cfg.apply_block(&b);
-    assert_eq!(cfg.status[0].color, 0x2);
+    assert_eq!(cfg.status[0].color, 0x3);
     // and encode re-masks rather than leaking high bits
     cfg.status[1].color = 0xFF;
     // status 1 (processing) color byte sits at index 2 + 4 = 6
@@ -128,9 +128,9 @@ fn legacy_2_byte_block_maps_onto_idle_only() {
 #[test]
 fn legacy_3_byte_block_sets_steady() {
     let mut cfg = LedConfig::default();
-    cfg.apply_block(&[10, 2, 1]);
+    cfg.apply_block(&[10, 3, 1]);
     assert!(cfg.steady);
-    assert_eq!((cfg.status[0].brightness, cfg.status[0].color), (10, 2));
+    assert_eq!((cfg.status[0].brightness, cfg.status[0].color), (10, 3));
 }
 
 #[test]

@@ -38,6 +38,31 @@ tag: the USB `bcdDevice` build counter (bumped on every behavior change), and
 
 ## [Unreleased]
 
+### Added
+
+- **`LED_KIND=rgb_gpio`: a 3-pin common-anode RGB LED on any three GPIOs.** Each
+  cathode is driven low to light its channel, on `LED_RED_PIN` / `LED_GREEN_PIN` /
+  `LED_BLUE_PIN` (default `29` / `28` / `27`), so all eight palette colours come
+  out distinct; there is no PWM, so brightness only decides lit or unlit. It is
+  phy `LED_DRIVER` value `4` (an RS-Key extension past PicoForge's 1–3), and
+  `rsk hw --led-driver rgb_gpio` selects it on any LED build. An `rgb_gpio` build
+  renders on it whatever an older stored driver says. The three pins are
+  compile-time checked against each other and against every other pin the
+  firmware claims by number (presence, LED power, USR LED, display wake and panel
+  control). `rsk` 0.3.38.
+
+### Changed
+
+- **The LED factory look is idle / processing / boot red, touch green, and steady
+  (no blinking).** This was yellow touch on green idle, blinking. It only reaches
+  a key with no stored LED record: a key that already booted an older build seeded
+  its record with the old look and keeps it, by design — boot never overwrites a
+  stored LED config. Apply the new look there with the commands under "Reset to
+  defaults" in [`docs/guides/led.md`](docs/guides/led.md). `rsk led --blink`
+  brings back the effects and blink patterns.
+- **A button key shows the touch colour while the presence button is held**, as
+  press feedback, not only while a touch is awaited.
+
 ## [0.4.11] - 2026-09-08
 
 The catch-up release, and the one where the instruments were audited harder than

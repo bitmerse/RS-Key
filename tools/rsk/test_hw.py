@@ -86,7 +86,7 @@ def test_upsert_str_rejects_oversize_and_empty():
 
 def test_driver_and_order_maps_match_firmware():
     # PicoForge LedDriverType numbering, and the RS-Key order values.
-    assert hw.DRIVERS == {"gpio": 1, "pimoroni": 2, "ws2812": 3}
+    assert hw.DRIVERS == {"gpio": 1, "pimoroni": 2, "ws2812": 3, "rgb_gpio": 4}
     assert hw.ORDERS == {"rgb": 0, "grb": 1}
 
 

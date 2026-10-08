@@ -21,6 +21,9 @@
 //! one `static` the transport and worker executors share.
 
 #[cfg(not(feature = "display"))]
+use core::sync::atomic::{AtomicBool, Ordering};
+
+#[cfg(not(feature = "display"))]
 use embassy_rp::Peri;
 #[cfg(not(feature = "display"))]
 use embassy_rp::gpio::{AnyPin, Input, Pull};
@@ -46,6 +49,18 @@ pub use rsk_device::presence::{SCOPE_CCID, SCOPE_FIDO, SCOPE_NONE, SCOPE_OTP};
 /// run on the high-priority interrupt executor and raise cancels or read
 /// "is a touch pending", while the worker runs the wait on the thread executor.
 static ARBITER: Arbiter = Arbiter::new();
+
+/// The latest presence-button sample, so the LED shows the touch colour while
+/// the button is held, not only during a touch wait.
+#[cfg(not(feature = "display"))]
+#[cfg_attr(all(feature = "no-touch", led_kind = "none"), allow(dead_code))]
+static BUTTON_PRESSED: AtomicBool = AtomicBool::new(false);
+
+#[cfg(not(feature = "display"))]
+#[cfg_attr(led_kind = "none", allow(dead_code))]
+pub fn is_button_pressed() -> bool {
+    BUTTON_PRESSED.load(Ordering::Relaxed)
+}
 
 #[cfg(feature = "display")]
 const _: () = assert!(MIN_TIMEOUT_SECS as u16 == rsk_ui::TIMEOUT_CHOICES[0]);
@@ -117,7 +132,7 @@ enum Button {
 #[cfg(all(not(feature = "no-touch"), not(feature = "display")))]
 impl Button {
     fn sample(&mut self) -> bool {
-        match self {
+        let pressed = match self {
             Button::Bootsel(bootsel) => is_bootsel_pressed(bootsel.reborrow()),
             Button::Gpio(button, active_high) => {
                 if *active_high {
@@ -126,7 +141,9 @@ impl Button {
                     button.is_low()
                 }
             }
-        }
+        };
+        BUTTON_PRESSED.store(pressed, Ordering::Relaxed);
+        pressed
     }
 }
 
