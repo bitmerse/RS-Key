@@ -19,8 +19,8 @@ src = "docs"
 default-theme = "rust"
 preferred-dark-theme = "ayu"
 site-url = "/RS-Key/"
-git-repository-url = "https://github.com/TheMaxMur/RS-Key"
-edit-url-template = "https://github.com/TheMaxMur/RS-Key/edit/main/{path}"
+git-repository-url = "https://github.com/bitmerse/RS-Key"
+edit-url-template = "https://github.com/bitmerse/RS-Key/edit/main/{path}"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
 
 [output.html.fold]
