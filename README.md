@@ -1,9 +1,15 @@
 # RS-Key
 
-[![ci](https://github.com/TheMaxMur/RS-Key/actions/workflows/ci.yml/badge.svg)](https://github.com/TheMaxMur/RS-Key/actions/workflows/ci.yml)
-[![deep-checks](https://github.com/TheMaxMur/RS-Key/actions/workflows/deep-checks.yml/badge.svg)](https://github.com/TheMaxMur/RS-Key/actions/workflows/deep-checks.yml)
-[![docs](https://github.com/TheMaxMur/RS-Key/actions/workflows/pages.yml/badge.svg)](https://themaxmur.github.io/RS-Key/)
+[![ci](https://github.com/bitmerse/RS-Key/actions/workflows/ci.yml/badge.svg)](https://github.com/bitmerse/RS-Key/actions/workflows/ci.yml)
+[![deep-checks](https://github.com/bitmerse/RS-Key/actions/workflows/deep-checks.yml/badge.svg)](https://github.com/bitmerse/RS-Key/actions/workflows/deep-checks.yml)
+[![docs](https://github.com/bitmerse/RS-Key/actions/workflows/pages.yml/badge.svg)](https://bitmerse.github.io/RS-Key/)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/14195/badge)](https://www.bestpractices.dev/projects/14195/silver)
+
+> **This is the [bitmerse](https://github.com/bitmerse/RS-Key) fork of
+> [TheMaxMur/RS-Key](https://github.com/TheMaxMur/RS-Key).** It adds the
+> `rgb_gpio` LED backend (a 3-pin common-anode RGB LED on any three GPIOs) used
+> by the bitmerse Romu board. The releases page and the OpenSSF badge refer to
+> the upstream project.
 
 **An open-source hardware passkey.** Flash one file onto a Raspberry Pi
 **RP2350** board and it becomes a USB security key: passkey logins in the
@@ -144,7 +150,7 @@ size, LED pin, or presence-button GPIO is a one-line build knob. Details:
 ## Documentation
 
 The docs live in [docs/](docs/) and are published as a site:
-**<https://themaxmur.github.io/RS-Key/>**.
+**<https://bitmerse.github.io/RS-Key/>**.
 
 | | |
 |---|---|
@@ -164,7 +170,7 @@ The release images are reproducible, so you can rebuild any of them bit for bit
 ([docs/releases.md](docs/releases.md)). To build your own:
 
 ```sh
-git clone https://github.com/TheMaxMur/RS-Key && cd RS-Key
+git clone https://github.com/bitmerse/RS-Key && cd RS-Key
 nix develop                       # toolchain, picotool, host tools, everything
 
 cargo build --release -p firmware
